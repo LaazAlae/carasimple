@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cara Detect (Simple)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .glassmorphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .upload-zone {
+            transition: all 0.3s ease;
+        }
+        .upload-zone.dragover {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-800">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-white mb-2">Cara Detect</h1>
+                <p class="text-indigo-200">Simple content detection demo</p>
+            </div>
+
+            <!-- Main Card -->
+            <div class="glassmorphism rounded-2xl p-8 mb-8">
+                <!-- Upload Zone -->
+                <div class="mb-8">
+                    <div id="uploadZone" class="upload-zone border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer">
+                        <input type="file" id="fileInput" class="hidden" accept="image/png,image/jpg,image/jpeg,image/webp,audio/mp3,audio/wav,audio/m4a">
+                        <div class="text-white">
+                            <svg class="mx-auto h-12 w-12 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 48 48">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" />
+                            </svg>
+                            <p class="text-lg mb-2">Drop files here or click to select</p>
+                            <p class="text-sm opacity-75">Images (PNG, JPG, WEBP) ≤ 5MB | Audio (MP3, WAV, M4A) ≤ 3MB</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Alert -->
+                <div id="errorAlert" class="hidden mb-6 bg-red-500 bg-opacity-20 border border-red-500 text-red-100 px-4 py-3 rounded relative">
+                    <span id="errorMessage"></span>
+                    <button onclick="hideError()" class="absolute top-0 bottom-0 right-0 px-4 py-3">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div class="glassmorphism rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-white" id="totalCount">0</div>
+                        <div class="text-indigo-200 text-sm">Total Uploads</div>
+                    </div>
+                    <div class="glassmorphism rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-green-400" id="foundCount">0</div>
+                        <div class="text-indigo-200 text-sm">Found</div>
+                    </div>
+                    <div class="glassmorphism rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-blue-400" id="ratioPercent">0%</div>
+                        <div class="text-indigo-200 text-sm">Detection Rate</div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-white">Recent Uploads</h2>
+                    <button onclick="resetData()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors">
+                        Reset All
+                    </button>
+                </div>
+
+                <!-- Results Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-white">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="text-left py-3 px-2">File</th>
+                                <th class="text-left py-3 px-2">Type</th>
+                                <th class="text-left py-3 px-2">Size</th>
+                                <th class="text-left py-3 px-2">Status</th>
+                                <th class="text-left py-3 px-2">Confidence</th>
+                                <th class="text-left py-3 px-2">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTable">
+                            <!-- Results will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize
+        function init() {
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('fileInput');
+
+            // Click to select
+            uploadZone.addEventListener('click', () => fileInput.click());
+            
+            // Drag and drop
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleUpload({ target: { files: e.dataTransfer.files } });
+                }
+            });
+            
+            fileInput.addEventListener('change', handleUpload);
+            
+            // Load initial data
+            refreshStats();
+            refreshTable();
+        }
+
+        // Handle file upload
+        async function handleUpload(evt) {
+            const file = evt.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.error || 'Upload failed');
+                    return;
+                }
+
+                const result = await response.json();
+                hideError();
+                refreshStats();
+                refreshTable();
+                
+                // Reset file input
+                document.getElementById('fileInput').value = '';
+                
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            }
+        }
+
+        // Refresh stats
+        async function refreshStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                
+                document.getElementById('totalCount').textContent = stats.total;
+                document.getElementById('foundCount').textContent = stats.found;
+                document.getElementById('ratioPercent').textContent = Math.round(stats.ratio * 100) + '%';
+            } catch (error) {
+                console.error('Failed to refresh stats:', error);
+            }
+        }
+
+        // Refresh table
+        async function refreshTable() {
+            try {
+                const response = await fetch('/api/assets');
+                const records = await response.json();
+                
+                const tbody = document.getElementById('resultsTable');
+                tbody.innerHTML = '';
+                
+                records.forEach(record => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-700 fade-in';
+                    
+                    const statusBadge = record.found 
+                        ? '<span class="bg-green-600 text-white px-2 py-1 rounded-full text-xs">Found</span>'
+                        : '<span class="bg-gray-600 text-white px-2 py-1 rounded-full text-xs">Not Found</span>';
+                    
+                    const confidence = record.confidence ? record.confidence.toFixed(3) : '-';
+                    
+                    row.innerHTML = `
+                        <td class="py-3 px-2 truncate max-w-32" title="${record.filename}">${record.filename}</td>
+                        <td class="py-3 px-2">${record.kind}</td>
+                        <td class="py-3 px-2">${record.sizeKB}KB</td>
+                        <td class="py-3 px-2">${statusBadge}</td>
+                        <td class="py-3 px-2">${confidence}</td>
+                        <td class="py-3 px-2">${formatDate(record.createdAtISO)}</td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Failed to refresh table:', error);
+            }
+        }
+
+        // Reset all data
+        async function resetData() {
+            if (!confirm('Are you sure you want to reset all data?')) return;
+            
+            try {
+                await fetch('/api/reset', { method: 'DELETE' });
+                refreshStats();
+                refreshTable();
+            } catch (error) {
+                showError('Failed to reset data');
+            }
+        }
+
+        // Utility functions
+        function formatDate(isoString) {
+            return new Date(isoString).toLocaleString();
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorAlert').classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('errorAlert').classList.add('hidden');
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
